@@ -1,0 +1,716 @@
+---
+title: "Version 1.2: COVID - CA flexdashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: cerulean
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+# dashboard
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(janitor)
+
+# theme
+library(ggthemes)
+library(brotools)
+library(hrbrthemes)
+
+# data wrangling
+library(tidyverse)
+library(lubridate)
+
+# data visualization
+library(plotly)
+library(gganimate)
+library(gifski)
+
+# map
+library(rmapshaper)
+library(sugarbag)
+```
+
+Global COVID-19 Data
+=======================================================================
+
+```{r global, message=FALSE, warning=FALSE, include=FALSE}
+##  download csse_covid_19_time_series ----------------------------------------
+# import TSConfirmedRaw ----
+TSConfirmedRaw <- readr::read_csv(
+  file = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv")
+
+# import TSRecoveredRaw ----
+TSRecoveredRaw <- readr::read_csv(
+  file = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv")
+
+
+
+# import TSDeathsRaw ----
+TSDeathsRaw <- readr::read_csv(
+  file = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv")
+
+
+
+# import TSConfirmedUSRaw ----------------------------------------------------
+TSConfirmedUSRaw <- readr::read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv")
+
+
+# import TSDeathsUSRaw  --------------------------------------------------------
+TSDeathsUSRaw <- readr::read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv")
+
+# create -> ConfirmedUS --------------------------------------------------------
+ConfirmedUS <- TSConfirmedUSRaw %>%
+  dplyr::select(-c(UID, iso2, iso3, code3, Admin2),
+                `Province_State`, `Country_Region`,
+                Combined_Key, FIPS, Lat, Long_) %>%
+  tidyr::pivot_longer(cols = -c(`Province_State`,
+                                `Country_Region`,
+                                Combined_Key,
+                                FIPS,
+                                Lat,
+                                Long_),
+                      names_to = "Date",
+                      values_to = "Confirmed") %>%
+  dplyr::mutate(Date = lubridate::mdy(Date)) %>%
+  janitor::clean_names(case = "snake")
+
+# create -> DeathsUS  ----
+DeathsUS <- TSDeathsUSRaw %>%
+  dplyr::select(-c(UID, iso2, iso3, code3, Admin2),
+                `Province_State`, `Country_Region`,
+                Combined_Key, FIPS, Population, Lat, Long_) %>%
+  tidyr::pivot_longer(cols = -c(`Province_State`,
+                                `Country_Region`,
+                                Combined_Key,
+                                FIPS,
+                                Population,
+                                Lat,
+                                Long_),
+                      names_to = "Date",
+                      values_to = "Deaths") %>%
+  dplyr::mutate(Date = lubridate::mdy(Date)) %>%
+  janitor::clean_names(case = "snake")
+# base::dput(lubridate::intersect(x = names(ConfirmedUS),
+#                                 y = names(DeathsUS)))
+
+# create -> USTSDataAll -----
+USTSDataAll <- ConfirmedUS %>%
+  dplyr::left_join(DeathsUS, by = c("fips", "province_state",
+                             "country_region", "lat",
+                             "long", "combined_key",
+                             "date"))  %>%
+  dplyr::mutate("New Case" = confirmed - lag(confirmed, 1)) %>% 
+  dplyr::rename(
+    state = province_state,
+    country = country_region)
+
+
+## create -> USMapData---------------------------------------------------------
+library(socviz) # for %nin%
+USMapData <- USTSDataAll %>%
+  filter(state %nin% c("American Samoa", "Diamond Princess",
+                       "Grand Princess", "Guam",
+                       "Northern Mariana Islands", "Puerto Rico",
+                       "Virgin Islands")) %>%
+  filter(lat != 0.00000 & long != 0.00000)
+
+## create -> GDPRaw ---------------------------------------------------------------------------
+# import gdp from https://github.com/datasets/gdp
+GDPRaw <- read_csv("https://raw.githubusercontent.com/datasets/gdp/master/data/gdp.csv")
+
+
+## create -> Confirmed--------------------------------------------------------------------------------
+Confirmed <- TSConfirmedRaw %>%
+  tidyr::pivot_longer(cols = -c(`Province/State`,
+                                `Country/Region`,
+                                Lat,
+                                Long),
+                      names_to = "Date",
+                      values_to = "Confirmed") %>%
+  dplyr::mutate(Date = lubridate::mdy(Date)) %>%
+  janitor::clean_names(case = "snake")
+
+
+## create -> Recovered--------------------------------------------------------------------------------
+Recovered <- TSRecoveredRaw %>%
+  tidyr::pivot_longer(cols = -c(`Province/State`,
+                                `Country/Region`,
+                                Lat,
+                                Long),
+                      names_to = "Date",
+                      values_to = "Recovered") %>%
+  dplyr::mutate(Date = mdy(Date)) %>%
+  janitor::clean_names(case = "snake")
+
+
+## create -> Deaths-----------------------------------------------------------------------------------
+Deaths <- TSDeathsRaw %>%
+  tidyr::pivot_longer(cols = -c(`Province/State`,
+                                `Country/Region`,
+                                Lat,
+                                Long),
+               names_to = "Date",
+               values_to = "Deaths") %>%
+  dplyr::mutate(Date = mdy(Date)) %>%
+  janitor::clean_names(case = "snake")
+
+
+## create -> WorldTSDataAll ---------------------------------------------------------------------------
+WorldTSDataAll <- Confirmed %>%
+  dplyr::left_join(x = ., y = Recovered,
+                   by = c("province_state",
+                          "country_region",
+                          "lat", "long",
+                          "date")) %>%
+  dplyr::mutate(recovered = replace_na(recovered,
+                                       replace = 0)) %>%
+  dplyr::left_join(x = ., y = Deaths,
+                   by = c("province_state",
+                          "country_region",
+                          "lat", "long",
+                          "date")) %>%
+  dplyr::mutate(deaths = replace_na(deaths,
+                                    replace = 0))
+
+
+## create -> SumRegionDate----------------------------------------------------------------------------
+# recent country_region by region
+SumRegionDate <- WorldTSDataAll %>%
+  # group by the region and date
+  dplyr::group_by(country_region, date) %>%
+  dplyr::summarize(
+    confirmed_sum = sum(confirmed),
+    recovered_sum = sum(recovered),
+    deaths_sum = sum(deaths)) %>%
+  dplyr::mutate("New Case" = confirmed_sum -
+                  dplyr::lag(confirmed_sum, 1)) %>%
+  dplyr::filter(date == max(date))
+# rename US to USA
+SumRegionDate <- SumRegionDate %>%
+  dplyr::mutate(country_region = case_when(
+  country_region == "US" ~ "USA",
+  TRUE ~ country_region))
+
+# remove non-physical locations
+SumRegionDate <- SumRegionDate %>%
+  dplyr::filter(country_region != "Diamond Princess") %>%
+  dplyr::filter(country_region != "MS Zaandam")
+
+
+## create -> recent_day-------------------------------------------------------------------------------
+# most recent day
+recent_day <- max(SumRegionDate$date)
+
+
+## create -> Gdp2016----------------------------------------------------------------------------------
+# filter to 2016 data
+Gdp2016 <- GDPRaw %>%
+  dplyr::select(region = `Country Name`,
+                code = `Country Code`,
+                year = Year) %>%
+  dplyr::filter(year == 2016)
+
+
+## create -> country_region ----------------------------------------------------
+Gdp2016 <- Gdp2016 %>%
+  dplyr::mutate(country_region = case_when(
+   stringr::str_detect(string = region, pattern = "United States") ~ "USA",
+   stringr::str_detect(string = region, pattern = "Macedonia") ~ "North Macedonia",
+   stringr::str_detect(string = region, pattern = "Czech Republic") ~ "Czechia",
+   stringr::str_detect(string = region, pattern = "Taiwan") ~ "Taiwan*",
+   stringr::str_detect(string = region, pattern = "West Bank") ~ "West Bank and Gaza",
+   stringr::str_detect(string = region, pattern = "Congo, Dem. Rep.") ~ "Congo (Kinshasa)",
+   stringr::str_detect(string = region, pattern = "Congo, Rep") ~ "Congo (Brazzaville)",
+   stringr::str_detect(string = region, pattern = "Bahamas, The") ~ "Bahamas",
+   stringr::str_detect(string = region, pattern = "Swaziland") ~ "Eswatini",
+   stringr::str_detect(string = region, pattern = "Gambia, The") ~ "Gambia",
+   TRUE ~ region))
+
+
+## create -> SumRecentRegionCodes---------------------------------------------------------------------
+SumRegionDateCodes <- SumRegionDate %>%
+  dplyr::left_join(x = ., y = Gdp2016,
+                   by = "country_region") %>%
+  dplyr::arrange(desc(confirmed_sum))
+# easier printing
+SumRegionDateCodes <- SumRegionDateCodes %>% 
+  dplyr::rename(`Confirmed` = confirmed_sum)
+
+## create -> WorldTSDataAllDate ----------------------------------------------
+WorldTSDataAllDate <- WorldTSDataAll %>%
+  # change this to region
+  dplyr::rename(region = country_region) %>%
+  # group by dates
+  dplyr::group_by(date) %>%
+  # get summary variables
+  dplyr::summarize(
+    confirmed_sum = sum(confirmed),
+    deaths_sum = sum(deaths),
+    recovered_sum = sum(recovered)
+  ) %>%
+  # create new case with lag
+  dplyr::mutate("New Case" = confirmed_sum - dplyr::lag(confirmed_sum, 1))
+
+
+## create -> WorldTSDataAllDateLong --------------------------------------------
+WorldTSDataAllDateLong <- WorldTSDataAllDate %>%
+  dplyr::select(-c(`New Case`),
+         `Confirmed` = confirmed_sum,
+         `Deaths` = deaths_sum,
+         `Recovered` = recovered_sum) %>%
+  tidyr::pivot_longer(cols = -date,
+               names_to = "status",
+               values_to = "cases")
+
+
+## create -> WorldTSIncrementLong---------------------------------------------------------------------
+WorldTSIncrementLong <- WorldTSDataAllDate %>%
+  dplyr::select(-`New Case`) %>%
+  dplyr::mutate(
+    `Confirmed` = confirmed_sum - lag(confirmed_sum, 1),
+    `Deaths` = deaths_sum - lag(deaths_sum, 1),
+    `Recovered` = recovered_sum - lag(recovered_sum, 1)) %>%
+  dplyr::filter(date != min(date)) %>%
+  tidyr::pivot_longer(cols = c(`Confirmed`, `Deaths`, `Recovered`),
+               names_to = "case",
+               values_to = "increment")
+# WorldTSIncrementLong
+
+## create -> WorldTSDataUS -----------------------------------------------------
+WorldTSDataUS <- WorldTSDataAll %>%
+  dplyr::filter(country_region == "US") %>%
+  dplyr::rename(
+    state = province_state,
+    country = country_region) %>%
+  dplyr::mutate("New Case" = confirmed - lag(confirmed, 1))
+
+## create -> USTSDataAllIncrementLong ------------------------------------------
+USTSDataAllIncrementLong <- WorldTSDataUS %>%
+  dplyr::select(date, confirmed, recovered, deaths, state) %>%
+  dplyr::group_by(state) %>%
+  dplyr::mutate(
+    confirmed_lag = confirmed - lag(confirmed, 1),
+    recovered_lag = recovered - lag(recovered, 1),
+    deaths_lag = deaths - lag(deaths, 1)) %>%
+  dplyr::filter(date != min(date)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(date) %>%
+  dplyr::summarize(
+    Confirmed = sum(confirmed_lag),
+    Recovered = sum(recovered_lag),
+    Deaths = sum(deaths_lag)) %>%
+  tidyr::pivot_longer(-date,
+               names_to = "case",
+               values_to = "increment")
+
+# create valueBox data ----
+WorldTSRecent <- WorldTSDataAllDate %>%
+  filter(date == max(date))
+# SumUSRecentCountry
+# these are for the valueBoxes
+SumUSRecentCountry <- WorldTSDataUS %>%
+  dplyr::filter(date == max(date)) %>%
+  dplyr::group_by(country) %>%
+  dplyr::summarize(
+    date_max = max(date),
+    confirmed_sum = sum(confirmed),
+    recovered_sum = sum(recovered),
+    new_case_sum = sum(`New Case`),
+    deaths_sum = sum(deaths))
+# value boxes first tab
+new_case <- WorldTSDataAll %>% dplyr::filter(confirmed > 0)
+case_no1 <- min(new_case$date)
+tday <- Sys.Date()
+days_passed <- tday - case_no1
+us_new_conf <- WorldTSDataUS %>% dplyr::filter(confirmed > 0)
+us_first_case_day <- min(us_new_conf$date)
+tday <- Sys.Date()
+us_days_passed <- tday - us_first_case_day
+```
+
+Column {data-width=400 .bg-secondary}
+-----------------------------------------------------------------------
+
+### `r paste0("New cases as of ", WorldTSRecent$date)`
+
+```{r world_new}
+valueBox(prettyNum(WorldTSRecent$`New Case`, big.mark = ","), color = "tomato")
+```
+
+### `r paste0("Confirmed cases as of ", WorldTSRecent$date)` 
+
+```{r total_confirmed}
+valueBox(prettyNum(WorldTSRecent$confirmed_sum, big.mark = ","), color = "sandybrown")
+```
+
+### `r paste0("Recovered cases as of ", WorldTSRecent$date)` 
+
+```{r total_recovered}
+valueBox(prettyNum(WorldTSRecent$recovered_sum, big.mark = ","), color = "palegreen")
+```
+
+### `r paste0("Deaths as of ", WorldTSRecent$date)` 
+
+```{r total_deaths}
+valueBox(prettyNum(WorldTSRecent$deaths_sum, big.mark = ","), color = "gray50")
+```
+
+
+### `r paste0("Days since first confirmed case at ", case_no1)` 
+
+```{r days_passed}
+valueBox(prettyNum(days_passed, big.mark = ","), color = "lightgoldenrodyellow")
+```
+
+Column {data-width=600 .tabset}
+-----------------------------------------------------------------------
+
+### Global COVID-19 Confirmed Cases
+
+```{r geo_map_confirm_cases}
+recent_day <- max(SumRegionDateCodes$date)
+# Set country boundaries as light gray
+line <- list(color = toRGB("#d1d1d1"), width = 0.2)
+
+# create geo for map options
+geo <- list(
+  showframe = FALSE,
+  showcoastlines = FALSE,
+  projection = list(type = "orthographic"),
+  resolution = "100",
+  showcountries = TRUE,
+  countrycolor = "#EEC591",
+  showocean = TRUE,
+  oceancolor = "#00B2EE",
+  showlakes = TRUE,
+  lakecolor = "#BFEFFF",
+  showrivers = TRUE,
+  rivercolor = "#0000FF",
+  bgcolor = "#FFFFFF"
+)
+
+geo_map_confirm_cases <- plotly::plot_geo() %>%
+  layout(
+    geo = geo,
+    paper_bgcolor = "#e8f7fc",
+    title = paste0("World COVID-19 Confirmed Cases by Region at ", recent_day)
+  ) %>%
+  add_trace(
+    data = SumRegionDateCodes,
+    z = ~`Confirmed`,
+    color = ~`Confirmed`,
+    colors = "Oranges",
+    text = ~`country_region`,
+    locations = ~code,
+    marker = list(line = line)
+  )
+
+geo_map_confirm_cases
+```
+
+
+Daily COVID-19 Cases (Global)
+=======================================================================
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### New Daily World COVID-19 Cumulative Cases
+
+```{r world_cum_point_chart}
+# set colors
+colors <- c("red1", "gray1", "springgreen2")
+# create base chart
+world_cum_point_chart <- WorldTSDataAllDateLong %>%
+  ggplot2::ggplot(aes(x = date,
+                      y = cases,
+                      color = status)) +
+  ggplot2::geom_point(size = 1, alpha = 2/5) +
+  ggplot2::scale_color_manual(values = colors) +
+  ggplot2::scale_y_continuous(labels = scales::label_number_si(accuracy = 0.1)) +
+    ggplot2::theme(
+    plot.margin = margin(0, 0, 0, 0, "pt"),
+    panel.background = element_rect(fill = "White"),
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.ticks = element_blank()) +
+  hrbrthemes::theme_ipsum_tw(plot_title_family = "Ubuntu") +
+  ggplot2::labs(title = "World COVID-19 Cumulative Cases by Day",
+       y = "Cases",
+       x = "Date",
+       color = " ")
+# pass over to plotly
+ggplotly(world_cum_point_chart) %>%
+  layout(legend = list(orientation = "h"))
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### New World COVID-19 Case Each Day
+
+```{r animate_world_cum_cases}
+colors <- c("red1", "gray1", "springgreen2")
+world_cum_cases <-
+  WorldTSIncrementLong %>%
+
+  ggplot2::ggplot(mapping = aes(x = date,
+                  y = increment,
+                  group = case,
+                  color = case)) +
+  ggplot2::geom_line(show.legend = FALSE,) +
+  ggplot2::scale_y_continuous(labels = scales::label_number_si(accuracy = 1)) +
+  ggplot2::scale_color_manual(values = colors) +
+  ggplot2::geom_segment(aes(xend = max(date) + 1,
+                            yend = increment),
+                             linetype = 2,
+                             colour = "grey1",
+                             show.legend = FALSE) +
+  ggplot2::geom_text(aes(x = max(date) + 1,
+                label = case),
+                 show.legend = FALSE,
+                 hjust = 0) +
+  hrbrthemes::theme_ipsum_tw(plot_title_family = "Ubuntu") +
+  # set the coordinates
+  ggplot2::coord_cartesian(
+    xlim = c(min(WorldTSIncrementLong$date),
+             max(WorldTSIncrementLong$date) + 7),
+    ylim = c(max(0, min(WorldTSIncrementLong$increment)),
+             max(WorldTSIncrementLong$increment)),
+    clip = "off") +
+  ggplot2::theme(legend.position = c(0.1, 0.8),
+        axis.title.x = element_blank()) +
+  ggplot2::guides(size = FALSE) +
+  ggplot2::geom_point(aes(size = increment),
+             alpha = 0.7,
+             show.legend = FALSE) +
+
+  ggplot2::scale_size(range = c(2, 10)) +
+
+  gganimate::transition_reveal(date) +
+  ggplot2::labs(title = "New Global COVID-19 Cases",
+      subtitle = "Date: {frame_along}",
+      y = "New daily cases",
+      x = "Date")
+animate_world_cum_cases <- gganimate::animate(world_cum_cases, nframes = 150,
+                                              fps = 10,
+                   renderer = gifski_renderer(loop = TRUE))
+animate_world_cum_cases
+```
+
+
+Daily COVID-19 Cases (United States)
+=======================================================================
+
+Column {data-width=400 .bg-secondary}
+-----------------------------------------------------------------------
+
+### `r paste0("New cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-new_case_sum}
+valueBox(prettyNum(SumUSRecentCountry$new_case_sum, big.mark = ","), color = "tomato")
+```
+
+### `r paste0("Confirmed cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-confirmed}
+valueBox(prettyNum(SumUSRecentCountry$confirmed_sum, big.mark = ","), color = "sandybrown")
+```
+
+### `r paste0("Recovered cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-recovered_sum}
+valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "palegreen")
+```
+
+### `r paste0("Deaths as of ", SumUSRecentCountry$date_max)` 
+
+```{r aus_deaths}
+valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "gray50")
+```
+
+
+### `r paste0("Days since first confirmed case on ", us_first_case_day)` 
+
+```{r us_days_passed}
+valueBox(prettyNum(us_days_passed, big.mark = ","), color = "#FFC300")
+```
+
+Column {data-width=600 .tabset}
+-----------------------------------------------------------------------
+
+### New US COVID-19 Cases Each Day
+
+```{r animate_us_increment}
+us_cum_cases <- USTSDataAllIncrementLong %>%
+  ggplot2::ggplot(aes(x = date,
+             y = increment,
+             group = case,
+             color = case)) +
+    # add line
+  ggplot2::geom_line(show.legend = FALSE) +
+  ggplot2::scale_color_manual(values = c("red1", "black", "dodgerblue")) +
+    # add segment, no legend
+  ggplot2::geom_segment(aes(xend = max(date) + 1,
+                            yend = increment),
+                        linetype = 2,
+                        color = "grey",
+                        show.legend = FALSE) +
+    # add text, no legend
+  ggplot2::geom_text(aes(x = max(date) + 1,
+                         label = case),
+                     hjust = 0,
+                     show.legend = FALSE) +
+    # set theme
+  hrbrthemes::theme_ipsum_tw(plot_title_family = "Ubuntu") +
+    # set cartesian coordinates to min/max dates
+  ggplot2::coord_cartesian(xlim = c(min(USTSDataAllIncrementLong$date),
+                                    max(USTSDataAllIncrementLong$date) + 7),
+                           clip = "off") +
+    # position the legend
+  ggplot2::theme(legend.position = "top",
+                 # no x axis title
+                 axis.title.x = element_blank()) +
+    # no guides
+  ggplot2::guides(size = FALSE) +
+  ggplot2::geom_point(aes(size = increment),
+                      alpha = 0.7,
+                      show.legend = FALSE) +
+
+  ggplot2::scale_size(range = c(2, 10)) +
+    # set transition
+  gganimate::transition_reveal(date) +
+    # assign labs
+  ggplot2::labs(title = "US COVID-19 Cases",
+                subtitle = "at date: {frame_along}",
+                y = "New Cases",
+                color = "Status",
+                x = "Date")
+
+animated_us_cum_cases <- gganimate::animate(us_cum_cases,
+                                            nframes = 150,
+                                            fps = 10,
+        renderer = gifski_renderer(loop = TRUE))
+animated_us_cum_cases
+```
+
+
+Geofacet COVID-19 Data
+=======================================================================
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+### Europe COVID-19 Confirmed Cases
+
+```{r }
+
+```
+
+### Europe COVID-19 Recovered Cases
+
+```{r }
+
+```
+
+### Europe COVID-19 Deaths
+
+```{r }
+
+```
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+### US COVID-19 Confirmed Cases
+
+```{r ggfacet_confirmed}
+
+```
+
+
+### US COVID-19 Recovered
+
+```{r ggfacet_recovered}
+
+```
+
+
+### US COVID-19 Deaths
+
+```{r ggfacet_deaths}
+
+```
+
+
+Sources
+=======================================================================
+
+1. [COVID-19 data](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series)
+
+3. [The country codes](https://github.com/datasets/gdp) 
+
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### The Global Data 
+
+```{r SumRegionDateCodes-datatable}
+SumRegionDateCodes %>%
+  dplyr::select(`Country region` = country_region,
+         `Country code` = code,
+         `Date` = date,
+         `Confirmed`,
+         `New Case`,
+         `Recovered` = recovered_sum,
+         `Deaths` = deaths_sum) %>%
+  dplyr::arrange(desc(`Confirmed`)) %>%
+  DT::datatable(
+    rownames = FALSE,
+    fillContainer = TRUE,
+    options = list(
+      bPaginate = FALSE
+    )
+  )
+```
+
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### The US Data 
+
+```{r table_state}
+WorldTSDataUS %>%
+  select(Country = country,
+         State = state,
+         Date = date,
+         Confirmed = confirmed,
+         `New Case`,
+         Recovered = recovered,
+         Deaths = deaths) %>%
+  arrange(desc(Confirmed)) %>%
+  DT::datatable(
+    rownames = FALSE,
+    fillContainer = TRUE,
+    options = list(
+      bPaginate = FALSE
+    )
+  )
+```
+

@@ -1,0 +1,545 @@
+---
+title: "Version 0.1.3: COVID dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: cerulean
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(skimr)
+library(socviz)
+library(covdata)
+library(janitor)
+
+library(flexdashboard)
+
+library(DT)
+# theme
+library(ggthemes)
+library(brotools)
+
+library(leaflet)
+library(plotly)
+library(usmap)
+library(spData)
+library(ggmap)
+library(hrbrthemes)
+library(geofacet)
+
+library(gganimate)
+library(gifski)
+library(rmapshaper)
+library(sugarbag)
+```
+
+Global COVID-19 Data
+=======================================================================
+
+```{r global, message=FALSE, warning=FALSE, include=FALSE}
+source("helpers.R")
+```
+
+Column {data-width=400 .bg-secondary}
+-----------------------------------------------------------------------
+
+### `r paste0("Worldwide confirmed cases as of ", WorldTSRecent$date)` 
+
+```{r total_confirmed}
+valueBox(prettyNum(WorldTSRecent$confirmed_sum, big.mark = ","), color = "tomato")
+```
+
+### `r paste0("Worldwide recovered cases as of ", WorldTSRecent$date)` 
+
+```{r total_recovered}
+valueBox(prettyNum(WorldTSRecent$recovered_sum, big.mark = ","), color = "palegreen")
+```
+
+
+### `r paste0("Worldwide deaths as of ", WorldTSRecent$date)` 
+
+```{r total_deaths}
+valueBox(prettyNum(WorldTSRecent$deaths_sum, big.mark = ","), color = "gray50")
+```
+
+
+Column {data-width=600 .tabset}
+-----------------------------------------------------------------------
+
+### Worldwide COVID-19 Confirmed Cases
+
+```{r geo_map_confirm_cases}
+# create recent_day
+recent_day <- max(SumRegionDateCodes$date)
+# Set country boundaries as light gray
+line <- list(color = toRGB("#d1d1d1"), width = 0.2)
+
+# create geo for map options
+geo <- list(
+  bgcolor = "#FFFAF0",
+  showframe = FALSE,
+  showcoastlines = FALSE,
+  # this is the globe option
+  projection = list(type = "orthographic"),
+  resolution = "100",
+  showcountries = TRUE,
+  showocean = TRUE,
+  showlakes = FALSE,
+  showrivers = FALSE)
+
+geo_map_confirm_cases <- plotly::plot_geo() %>%
+  layout(
+    geo = geo,
+    paper_bgcolor = "#FFFAF0",
+    title = paste0("World COVID-19 Confirmed Cases as of ", 
+                   recent_day)) %>%
+  add_trace(
+    data = SumRegionDateCodes,
+    z = ~Confirmed,
+    color = ~Confirmed,
+    colors = "Reds",
+    text = ~country_region,
+    locations = ~code,
+    marker = list(line = line))
+
+geo_map_confirm_cases
+```
+
+### Worldwide COVID-19 Deaths
+
+```{r geo_map_deaths}
+# Set country boundaries as light gray
+line <- list(color = toRGB("#d1d1d1"), width = 0.2)
+
+# create geo for map options
+# c("#B0E0E6", "#F0FFF0")
+geo <- list(
+  oceancolor = "#B0E0E6",
+  showframe = FALSE,
+  showcoastlines = FALSE,
+  # this is the mercator option
+  projection = list(type = 'Mercator'),
+  resolution = "100",
+  showcountries = TRUE,
+  showocean = TRUE,
+  showlakes = FALSE,
+  showrivers = FALSE)
+
+geo_map_deaths <- plotly::plot_geo() %>%
+  layout(
+    geo = geo,
+    paper_bgcolor = "#e8f7fc",
+    title = paste0("World COVID-19 Deaths as of ", 
+                   recent_day)) %>%
+  add_trace(
+    data = SumRegionDateCodes,
+    z = ~Deaths,
+    color = ~Deaths,
+    colors = "Greys",
+    text = ~country_region,
+    locations = ~code,
+    marker = list(line = line))
+
+geo_map_deaths
+```
+
+### Worldwide COVID-19 Cases (Cumulative)
+
+```{r world_cum_point_chart}
+# set colors
+colors <- c("red1", "gray1", "springgreen2")
+# font style
+font_style <- list(
+  family = "Ubuntu",
+  size = 14,
+  color = 'black')
+# create base chart
+world_cum_point_chart <- WorldTSDataAllDateLong %>%
+  ggplot2::ggplot(aes(x = date,
+                      y = cases,
+                      color = status)) +
+  geom_point(size = 1, alpha = 2/5) +
+  scale_color_manual(values = colors) +
+  scale_y_continuous(labels = scales::label_number_si(accuracy = 0.1)) +
+    theme(
+    plot.margin = margin(0, 0, 0, 0, "pt"),
+    panel.background = element_rect(fill = "White"),
+    legend.position = "left",
+    axis.title = element_blank(),
+    axis.ticks = element_blank()) +
+  hrbrthemes::theme_ipsum_tw(plot_title_family = "Ubuntu") +
+  labs(title = "Worldwide COVID-19 Cumulative Cases",
+       y = "Cases",
+       x = "Date",
+       color = " ")
+# pass over to plotly
+ggplotly(world_cum_point_chart) %>%
+  plotly::layout(legend = list(orientation = "h"),
+                 font = font_style)
+```
+
+### Dataset 
+
+```{r SumRegionDateCodes-datatable}
+SumRegionDateCodes %>%
+  dplyr::select(`Country region` = country_region,
+          `Country code` = code,
+          Date = date,
+          Confirmed,
+          `New Cases`,
+          Recovered,
+          Deaths) %>%
+  dplyr::arrange(desc(Confirmed)) %>%
+  DT::datatable(
+    rownames = FALSE,
+    fillContainer = TRUE,
+    options = list(
+      bPaginate = FALSE))
+```
+
+
+Daily Global COVID-19 Cases
+=======================================================================
+
+Column {data-width=400 .bg-secondary}
+-----------------------------------------------------------------------
+
+### `r paste0("New worldwide COVID-19 cases as of ", WorldTSRecent$date)`
+
+```{r world_new}
+valueBox(prettyNum(WorldTSRecent$`New Case`, big.mark = ","), color = "sandybrown")
+```
+
+### `r paste0("Days since first confirmed case at ", case_no1)` 
+
+```{r days_passed}
+valueBox(prettyNum(days_passed, big.mark = ","), color = "lightgoldenrodyellow")
+```
+
+Column {data-width=600 .tabset}
+-----------------------------------------------------------------------
+
+### Daily Worldwide COVID-19 Cases (Animated)
+
+```{r animate_world_cum_cases}
+colors <- c("red1", "gray1", "springgreen2")
+world_cum_cases <-
+  WorldTSIncrementLong %>%
+
+  ggplot2::ggplot(mapping = aes(x = date,
+                  y = increment,
+                  group = case,
+                  color = case)) +
+  ggplot2::geom_line(show.legend = FALSE,) +
+  ggplot2::scale_y_continuous(labels = scales::label_number_si(accuracy = 1)) +
+  ggplot2::scale_color_manual(values = colors) +
+  ggplot2::geom_segment(aes(xend = max(date) + 1,
+                            yend = increment),
+                             linetype = 2,
+                             colour = "grey1",
+                             show.legend = FALSE) +
+  ggplot2::geom_text(aes(x = max(date) + 1,
+                label = case),
+                 show.legend = FALSE,
+                 hjust = 0) +
+  hrbrthemes::theme_ipsum_tw(base_size = 10) +
+  # set the coordinates
+  ggplot2::coord_cartesian(
+    xlim = c(min(WorldTSIncrementLong$date),
+             max(WorldTSIncrementLong$date) + 7),
+    ylim = c(max(0, min(WorldTSIncrementLong$increment)),
+             max(WorldTSIncrementLong$increment)),
+    clip = "off") +
+  ggplot2::theme(legend.position = c(0.1, 0.8),
+        axis.title.x = element_blank()) +
+  ggplot2::guides(size = FALSE) +
+  ggplot2::geom_point(aes(size = increment),
+             alpha = 0.7,
+             show.legend = FALSE) +
+
+  ggplot2::scale_size(range = c(2, 10)) +
+
+  gganimate::transition_reveal(date) +
+  ggplot2::labs(title = "New Global COVID-19 Cases",
+      subtitle = "Date: {frame_along}",
+      y = "New daily cases",
+      x = "Date")
+animate_world_cum_cases <- gganimate::animate(world_cum_cases, nframes = 150,
+                                              fps = 10,
+                   renderer = gifski_renderer(loop = TRUE))
+animate_world_cum_cases
+```
+
+United States COVID-19 Data
+=======================================================================
+
+Column {data-width=400 .bg-secondary}
+-----------------------------------------------------------------------
+
+### `r paste0("New cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-new_case_sum}
+valueBox(prettyNum(SumUSRecentCountry$new_case_sum, big.mark = ","), color = "tomato")
+```
+
+### `r paste0("Confirmed cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-confirmed}
+valueBox(prettyNum(SumUSRecentCountry$confirmed_sum, big.mark = ","), color = "sandybrown")
+```
+
+### `r paste0("Recovered cases as of ", SumUSRecentCountry$date_max)` 
+
+```{r SumUSRecentCountry-recovered_sum}
+valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "palegreen")
+```
+
+### `r paste0("Deaths as of ", SumUSRecentCountry$date_max)` 
+
+```{r deaths_sum}
+valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "gray50")
+```
+
+
+### `r paste0("Days since first confirmed case on ", us_first_case_day)` 
+
+```{r us_days_passed}
+valueBox(prettyNum(us_days_passed, big.mark = ","), color = "#FFC300")
+```
+
+Column {data-width=600 .tabset}
+-----------------------------------------------------------------------
+
+### United States Confirmed Cases
+
+```{r plot_geo-confirmed_us}
+us_map_layout <- list(
+  scope = 'usa',
+  lakecolor = "#3399FF",
+  projection = list(type = 'albers usa'))
+
+plot_geo() %>%
+  add_trace(
+    z = confirmed_us, 
+    text = state.name, 
+    span = I(0),
+    locations = state.abb, 
+    locationmode = 'USA-states') %>%
+  layout(geo = us_map_layout,
+         title = "Current US Confirmed Cases")
+```
+
+### United States Deaths
+
+```{r plot_geo-deaths_us}
+us_map_layout <- list(
+  scope = 'usa',
+  lakecolor = "#3399FF",
+  projection = list(type = 'albers usa'))
+
+plot_geo() %>%
+  add_trace(
+    z = deaths_us, 
+    text = state.name, 
+    span = I(0),
+    locations = state.abb, 
+    locationmode = 'USA-states') %>%
+  layout(geo = us_map_layout,
+         title = "Current US Deaths")
+```
+
+
+### United States COVID-19 Cases (Animated)
+
+```{r animate_us_increment}
+us_cum_cases <- USTSDataAllIncrementLong %>%
+  ggplot2::ggplot(aes(x = date,
+             y = increment,
+             group = case,
+             color = case)) +
+    # add line
+  ggplot2::geom_line() +
+  ggplot2::scale_color_manual(values = c("red1", "black", "dodgerblue")) +
+    # add segment, no legend
+  ggplot2::geom_segment(aes(xend = max(date) + 1,
+                            yend = increment),
+                        linetype = 2,
+                        color = "grey",
+                        show.legend = FALSE) +
+    # add text, no legend
+  ggplot2::geom_text(aes(x = max(date) + 1,
+                         label = case),
+                     hjust = 0,
+                     show.legend = FALSE) +
+    # set theme
+  hrbrthemes::theme_ipsum_tw(base_size = 10) +
+    # set cartesian coordinates to min/max dates
+  ggplot2::coord_cartesian(xlim = c(min(USTSDataAllIncrementLong$date),
+                                    max(USTSDataAllIncrementLong$date) + 7),
+                           clip = "off") +
+    # position the legend
+  ggplot2::theme(legend.position = c(0.1, 0.8),
+                 # no x axis title
+                 axis.title.x = element_blank()) +
+    # no guides
+  ggplot2::guides(size = FALSE) +
+  ggplot2::geom_point(aes(size = increment),
+                      alpha = 0.7) +
+
+  ggplot2::scale_size(range = c(2, 10)) +
+    # set transition
+  gganimate::transition_reveal(date) +
+    # assign labs
+  ggplot2::labs(title = "US COVID-19 Cases",
+                subtitle = "at date: {frame_along}",
+                y = "New Cases",
+                color = "Status",
+                x = "Date")
+
+animated_us_cum_cases <- gganimate::animate(us_cum_cases,
+                                            nframes = 150,
+                                            fps = 10,
+        renderer = gifski_renderer(loop = TRUE))
+animated_us_cum_cases
+```
+
+### Dataset
+
+```{r table_state}
+WorldTSDataUS %>%
+  select(Country = country,
+         State = state,
+         Date = date,
+         Confirmed = confirmed,
+         `New Case`,
+         Recovered = recovered,
+         Deaths = deaths) %>%
+  arrange(desc(Confirmed)) %>%
+  DT::datatable(
+    rownames = FALSE,
+    fillContainer = TRUE,
+    options = list(
+      bPaginate = FALSE
+    )
+  )
+```
+
+
+United States COVID-19 Data
+=======================================================================
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Positive Tests (COVID Tracking project)
+
+```{r geofacet-pos, fig.width=16, fig.height=10}
+geofacet_pos <- PosMapCovus %>% 
+    ggplot2::ggplot(aes(x = days_elapsed, 
+                        y = `positive tests`,
+                        group = date)) +
+    geom_col(alpha = 2/10, 
+             linetype = 0) + 
+  
+    ggplot2::geom_line(data = TidyPosMapCovus, 
+                       mapping = aes(x = days_elapsed, 
+                                     y = `Positive Test Value`, 
+                                     group = `Positive Test Metric`,
+                                     color = `Positive Test Metric`), 
+                       show.legend = TRUE) +
+    geofacet::facet_geo( ~ state, 
+                       grid = "us_state_grid1",
+                       scales = "free_y")  +
+  
+    ggplot2::labs(title = "US positive COVID tests (7-day rolling average)", 
+                  subtitle = paste0("Between ", 
+                                    min(PosMapCovus$date), 
+                                    " and ", 
+                                    max(PosMapCovus$date)),
+                  y = "New Positive Tests",
+                  x = "Days Elapsed") + 
+  
+  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+
+  ggplot2::theme_bw()
+
+geofacet_pos
+
+# knitr::include_graphics(path = "figs/2020-07-11-geofacet-pos.png")
+```
+
+### Cases (NYT vs COVID tracking project)
+
+```{r TidyCovCaseData, fig.width=16, fig.height=10}
+geofacet_cases <- TidyCovCaseData %>% 
+        ggplot2::ggplot(aes(x = days_elapsed, 
+                                     y = `Cases Value`, 
+                                     group = `Cases Key`,
+                                     color = `Cases Key`)) +
+    ggplot2::geom_line(show.legend = TRUE) +
+    geofacet::facet_geo( ~ state, 
+                       grid = "us_state_grid1",
+                       scales = "free_y")  +
+  
+    ggplot2::labs(title = "US COVID Cases (NYT vs. COVID tracking)", 
+                  subtitle = paste0("Between ", 
+                                    min(TidyCovCaseData$date), 
+                                    " and ", 
+                                    max(TidyCovCaseData$date)),
+                  y = "New Cases",
+                  x = "Days Elapsed") + 
+  
+  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+  
+  ggplot2::theme_minimal()
+
+geofacet_cases
+
+# knitr::include_graphics(path = "figs/2020-07-11-geofacet-cases.png")
+```
+
+### US Deaths (NYT vs COVID tracking project)
+
+```{r geofacet_deaths, fig.width=16, fig.height=10}
+geofacet_deaths <- TidyCovDeathData %>% 
+      ggplot2::ggplot(aes(x = days_elapsed, 
+                          y = `Death Value`, 
+                          group = `Death Key`,
+                          color = `Death Key`)) +
+    ggplot2::geom_line(show.legend = TRUE) +
+    geofacet::facet_geo( ~ state, 
+                       grid = "us_state_grid1",
+                       scales = "free_y")  +
+  
+    ggplot2::labs(title = "US COVID deaths (NYT vs. COVID tracking)", 
+                  subtitle = paste0("Between ", 
+                                    min(DeathsMapCovus$date), 
+                                    " and ", 
+                                    max(DeathsMapCovus$date)),
+                  y = "New Positive Tests",
+                  x = "Days Elapsed") + 
+  
+  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+  
+  ggplot2::theme_minimal()
+
+geofacet_deaths
+
+# knitr::include_graphics(path = "figs/2020-07-11-geofacet-deaths.png")
+```
+
+Sources
+=======================================================================
+
+1. [COVID-19 data](https://github.com/CSSEGISandData/COVID-19) - these data come from the [time series](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series) folder, and are updated daily with new cases, recovered, and deaths.
+
+2. [Country codes](https://github.com/datasets/gdp) - these come from the GDP country codes in 2016. Will be updated as needed. 
+
+3. [covdata](https://kjhealy.github.io/covdata/index.html) is a package from [Kieran Healy](https://kieranhealy.org/) and contains data from the NYT database, COVID tracking project, and others. 
+
+
+
