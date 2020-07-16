@@ -234,9 +234,12 @@ geofacet_pos <- PosMapCovus %>%
                   y = "New Positive Tests",
                   x = "Days Elapsed") + 
   
-  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+    ggplot2::theme_bw() +
+  
+    ggplot2::theme(axis.text.x = element_text(angle = 315),
+                 legend.position = "top") 
 
-  ggplot2::theme_bw()
+  
 
 geofacet_pos
 
@@ -273,9 +276,12 @@ geofacet_cases <- TidyCovCaseData %>%
                   y = "New Cases",
                   x = "Days Elapsed") + 
   
-  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+    ggplot2::theme_minimal() +
   
-  ggplot2::theme_minimal()
+    ggplot2::theme(axis.text.x = element_text(angle = 315),
+                 legend.position = "top") 
+  
+
 
 geofacet_cases
 
@@ -310,9 +316,12 @@ geofacet_deaths <- TidyCovDeathData %>%
                   y = "New Positive Tests",
                   x = "Days Elapsed") + 
   
-  ggplot2::theme(axis.text.x = element_text(angle = 315)) + 
+   ggplot2::theme_minimal() +
   
-  ggplot2::theme_minimal()
+   ggplot2::theme(axis.text.x = element_text(angle = 315),
+                 legend.position = "top") 
+  
+ 
 
 geofacet_deaths
 

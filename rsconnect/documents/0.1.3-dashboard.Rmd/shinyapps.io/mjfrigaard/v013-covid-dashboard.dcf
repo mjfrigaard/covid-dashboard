@@ -5,9 +5,9 @@ account: mjfrigaard
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2561329
-bundleId: 3381136
+bundleId: 3383210
 url: https://mjfrigaard.shinyapps.io/v013-covid-dashboard/
-when: 1594512932.9036
+when: 1594579367.65669
 asMultiple: TRUE
 asStatic: FALSE
 ignoredFiles: code/01.1-import-wrangle-geofacet.R|code/01.0-import-csse-time-series.R|code/02.0-wrangle-csse-time-series.R|covid-geofacets.Rmd|errata.Rmd|index.Rmd|README.Rmd

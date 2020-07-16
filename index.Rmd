@@ -1,9 +1,11 @@
 ---
-title: "Covid - CA flexdashboard (documentation)"
+title: "Covid - flexdashboard (documentation)"
 date: "`r Sys.Date()`"
 output:
   rmdformats::readthedown:
     highlight: kate
+
+always_allow_html: true
 ---
 
 
@@ -45,7 +47,7 @@ base::options(
 
 # Packages
 
-```{r packages, include=FALSE}
+```{r packages, message=FALSE, warning=FALSE}
 # dashboard
 library(flexdashboard)
 library(knitr)
@@ -78,17 +80,29 @@ library(sugarbag)
 
 ***
 
-# Updates (version 0.1.3)
+# Updates (version 0.1.4)
 
-+ Wrangling steps have been moved into `helpers.R` script (includes both `import` and `wrangle` scripts from the `code` folder)   
-+ Changed contents of `valueBox()`s to sentence case  
-+ Updated global maps with `orthographic` and `Mercator`  
-+ Moved worldwide cases to page 2, and US data to page 3  
-+ 
+- [x] Wrangling steps have been moved into `helpers.R` script (includes both `import` and `wrangle` scripts from the `code` folder)   
+- [x] Changed contents of `valueBox()`s to sentence case  
+- [x] new colors in `valueBox()`'s 
+ - [x] `c("#B22222", "#EE4000", "#EEE9E9", "#00FF7F", "#FFFFF0")`
+- [x] Updated global maps with `orthographic` and `Mercator`  
+
+
+# Changes coming 
+
+- [ ] Move worldwide cases to page 2, and US data to page 3   
+- [ ] Re-size columns and `valueBox()`s   
+- [ ] Move maps and charts onto their own page (Global and US)  
+- [ ] Add `geofacet` maps and use `covdata` package for comparing NYT data with COVID tracking project  
+- [ ] Fix `geofacet` units on `y` axes (non-scientific notation)  
+- [ ] add map for worldwide recovered on page 1, column 3  
 
 ***
 
-# Johns Hopkins University's CSSE Data
+# DATA: Johns Hopkins University's CSSE 
+
+https://ramikrispin.github.io/coronavirus/articles/intro_coronavirus_dataset.html
 
 The COVID-19 data objects are loaded below from various sources. Some of these are updated daily, others are pre-existing datasets for geographic locators or other variables to aid in visualizing/mapping.
 
@@ -203,18 +217,18 @@ fs::dir_ls(paste0("data/processed/",
 
 This section covers the data visualizations in the dashboard. Because the dashboard is built using multiple pages, with `orientation: columns` and `vertical_layout: fill`. Read more about this layout [here](https://rmarkdown.rstudio.com/flexdashboard/layouts.html#multiple-pages).
 
-```{r 2020-07-10-page01-tab01, echo=FALSE}
-# knitr::include_graphics(path = "figs/2020-07-10-page01-tab01.png")
+```{r global-covid-data-maps-01, echo=FALSE}
+knitr::include_graphics(path = "figs/global-covid-data-maps-01.png")
 ```
 
-## Page 1: Global COVID-19 Data
+## Page 1: Global COVID-19 Data (Maps)
 
-Page 1 is titled, `Global COVID-19 Data`
+Page 1 is titled, `Global COVID-19 Data (Maps)`. This contains the data from the `WorldTSRecent` dataset, the 
 
 ### Column 1: `valueBox()`s (`.bg-secondary`)
 
 ```
-Column {data-width=400 .bg-secondary}
+Column {data-width=250 .bg-secondary}
 -----------------------------------------------------------------------
 ```
 
@@ -230,7 +244,7 @@ This is a tibble with a single row for the most recent stats.
 
 The `valueBox()` and `prettyNum()` functions display the objects below:
 
-##### Worldwide confirmed cases as of... 
+##### Total worldwide confirmed cases as of... 
 
 ```{r WorldTSRecent-confirmed_sum}
 WorldTSRecent$date
@@ -238,25 +252,25 @@ WorldTSRecent$confirmed_sum
 ```
 
 ```{r total_confirmed, eval=FALSE}
-### `r paste0("Confirmed Cases as of ", WorldTSRecent$date)` 
+### `r paste0("Total worldwide confirmed cases as of ", WorldTSRecent$date)` 
 
 valueBox(prettyNum(WorldTSRecent$confirmed_sum, big.mark = ","), color = "tomato")
 ```
 
-##### Worldwide recovered cases as of ...
+##### New worldwide cases as of...
 
 ```{r WorldTSRecent-New-Case}
 WorldTSRecent$date
-WorldTSRecent$recovered_sum
+WorldTSRecent$`New Case`
 ```
 
 ```{r world_new, eval=FALSE}
-### `r paste0("New Cases as of ", WorldTSRecent$date)`
+### `r paste0("New worldwide cases as of ", WorldTSRecent$date)`
 
 valueBox(prettyNum(WorldTSRecent$`New Case`, big.mark = ","), color = "sandybrown")
 ```
 
-##### Worldwide deaths as of... 
+##### Worldwide deaths as of...
 
 ```{r WorldTSRecent-deaths_sum}
 WorldTSRecent$date
@@ -267,6 +281,33 @@ WorldTSRecent$deaths_sum
 ### `r paste0("Worldwide deaths as of ", WorldTSRecent$date)` 
 
 valueBox(prettyNum(WorldTSRecent$deaths_sum, big.mark = ","), color = "gray50")
+```
+
+#### Worldwide recovered cases as of...
+
+```{r WorldTSRecent-recovered-cases}
+WorldTSRecent$date
+WorldTSRecent$recovered_sum
+```
+
+```{r recovered-cases-world, eval=FALSE}
+### `r paste0("Worldwide recovered cases as of ", WorldTSRecent$date)` 
+
+valueBox(prettyNum(WorldTSRecent$recovered_sum, big.mark = ","), color = "palegreen")
+```
+
+#### Days since first confirmed case at...
+
+```{r days-since-first-confirmed-case}
+WorldTSRecent$date
+case_no1
+days_passed
+```
+
+```{r days-since-conf-worldwide, eval=FALSE}
+### `r paste0("Days since first confirmed case at ", case_no1)` 
+
+valueBox(prettyNum(days_passed, big.mark = ","), color = "lightgoldenrodyellow")
 ```
 
 
@@ -328,8 +369,8 @@ geo_map_confirm_cases
 
 This is a new `Mercator` map of the confirmed deaths from COVID. 
 
-```{r 2020-07-10-page01-tab02, echo=FALSE}
-# knitr::include_graphics(path = "figs/2020-07-10-page01-tab02.png")
+```{r global-covid-data-maps-02, echo=FALSE}
+knitr::include_graphics(path = "figs/global-covid-data-maps-02.png")
 ```
 
 ```{r geo_map_deaths}
@@ -368,7 +409,62 @@ geo_map_deaths <- plotly::plot_geo() %>%
 geo_map_deaths
 ```
 
-### Column 4: Worldwide COVID-19 Cases (Cumulative) (`.tabset`)
+### Column 4: Dataset 
+
+```{r SumRegionDateCodes-datatable}
+SumRegionDateCodes %>%
+  dplyr::select(`Country region` = country_region,
+          `Country code` = code,
+          Date = date,
+          Confirmed,
+          `New Cases`,
+          Recovered,
+          Deaths) %>%
+  dplyr::arrange(desc(Confirmed)) %>%
+  DT::datatable(
+    rownames = FALSE,
+    fillContainer = TRUE,
+    options = list(
+      bPaginate = FALSE))
+```
+
+Convert this table to [`sparkline`](https://glin.github.io/reactable/articles/examples.html#embedding-html-widgets) and add [histograms](https://glin.github.io/reactable/articles/building-twitter-followers.html).
+
+```{r reactable}
+library(reactable)
+data <- SumRegionDateCodes %>%
+  dplyr::select(Country = country_region,
+                `Country code` = code,
+                 Date = date,
+                 Confirmed,
+                 `New Cases`,
+                  Recovered,
+                  Deaths) %>%
+  dplyr::arrange(desc(Confirmed)) 
+reactable::reactable(data,
+  defaultSorted = "Confirmed",
+  columns = list(
+    Confirmed = colDef(
+      name = "Confirmed",
+      defaultSortOrder = "desc",
+      format = colFormat(prefix = "")
+    ),
+    Country = colDef(
+      name = "Country",
+      defaultSortOrder = "desc",
+      format = colFormat(separators = TRUE)
+    ),
+    Date = colDef(
+      name = "Date",
+      defaultSortOrder = "desc",
+      format = colFormat(separators = TRUE)
+      # format = colFormat(percent = TRUE, digits = 1)
+    )
+  )
+)
+```
+
+### Column 4: Worldwide COVID-19 Cases (Dataset) (`.tabset`)
 
 1. Create `WorldTSDataAllDate` and `WorldTSDataRecent`   
  - `WorldTSDataAllDate` is `WorldTSDataAll` grouped by `date`   
@@ -448,7 +544,7 @@ SumRegionDateCodes %>%
 
 ***
 
-## Page 2: Daily Worldwide COVID-19 Cases
+## Page 2: Daily Global COVID-19 Cases (Graphs)
 
 This page is titled, "Daily Worldwide COVID-19 Cases"
 
@@ -562,7 +658,7 @@ knitr::include_graphics(path =
 ```
 
 
-## Page 3: United States COVID-19 Data
+## Page 3: US COVID-19 Data (Maps)
 
 This page is the US time-series COVID-19 data. 
 
@@ -789,6 +885,7 @@ WorldTSDataUS %>%
       bPaginate = FALSE))
 ```
 
+## Page 4: US COVID-19 Data (Graphs)
 
 ## The `covdata` package 
 
