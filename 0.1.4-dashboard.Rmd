@@ -46,10 +46,10 @@ Global COVID-19 Data (Maps)
 ```{r global, message=FALSE, warning=FALSE, include=FALSE}
 source("helpers.R")
 # load Ubuntu font ----
-extrafont::font_import(paths = "www/", prompt = FALSE)
+# extrafont::font_import(paths = "www/", prompt = FALSE)
 # check fonts
 # extrafont::fonts()
-extrafont::loadfonts(device = "postscript")
+# extrafont::loadfonts(device = "postscript")
 ```
 
 Column {data-width=300 .bg-secondary}
