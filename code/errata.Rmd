@@ -1,0 +1,66 @@
+
+
+
+
+
+
+
+
+### `SumUSRecentCountry` = `max(date)` & group by `country` summary
+
+`dplyr::filter` to the most recent date, group the dataset by `country` and get a summary of `date`, `confirmed`, `New Case`, and `deaths`.
+
+```{r SumUSRecentCountry}
+# SumUSRecentCountry
+# these are for the valueBoxes
+SumUSRecentCountry <- USTSDataAll %>%
+  dplyr::filter(date == max(date)) %>%
+  dplyr::group_by(country) %>%
+  dplyr::summarize(
+    date_max = max(date),
+    confirmed_sum = sum(confirmed),
+    new_case_sum = sum(`New Case`),
+    deaths_sum = sum(deaths))
+# create USRecentCountryMaxDate
+USRecentCountryMaxDate <- SumUSRecentCountry %>%
+  filter(date_max == max(date_max))
+```
+
+
+### `WorldTSDataRecent` = `date == max(date)`
+
+This gives me a dataset with the most recent date.
+
+```{r WorldTSDataRecent}
+WorldTSDataRecent <- WorldTSDataAllDate %>%
+  filter(date == max(date))
+WorldTSDataRecent %>% rmarkdown::paged_table()
+```
+
+### Get the `USCities` data
+
+Reduce `map::world.cities` to USA cities.
+
+```{r WorldCities}
+library(maps)
+WorldCities <- maps::world.cities %>%
+  dplyr::select(
+    city = name,
+    country_region = country.etc,
+    population = pop,
+    lat,
+    long)
+USCities <- WorldCities %>%
+  dplyr::filter(str_detect(string = country_region, pattern = "USA"))
+```
+
+### Join `SumRecentRegion` to `USCities` and create `SumRecentRegionCities`.
+
+```{r SumRecentRegionCities}
+SumRecentRegionCities <- SumRecentRegion %>%
+  dplyr::left_join(x = .,
+                   y = USCities,
+                   by = "country_region") %>%
+  dplyr::arrange(desc(confirmed_sum))
+glimpse(SumRecentRegionCities, 78)
+```

@@ -16,11 +16,10 @@
 # |_|                         |___/
 
 library(flexdashboard)
-library(readr)
 library(leaflet)
 library(DT)
 library(tidyverse)
-library(lubridate)
+library(dplyr)
 library(plotly)
 library(usmap)
 library(spData)
@@ -29,6 +28,7 @@ library(hrbrthemes)
 library(geofacet)
 library(socviz)
 library(covdata)
+library(zoo)
 
 
 # ‹(•_•)› IMPORT ––•––•––√\/––√\/––•––•––√\/––√\/––•––•––√\/––√\/  ----
@@ -104,25 +104,26 @@ MapCovus <- Covus %>%
 #   \_/\_/ |_|  \__,_|_| |_|\__, |_|\___|
 #                           |___/
 
-PosMapCovus <- MapCovus %>% 
+PosMapCovus <- MapCovus %>%
   dplyr::filter(measure == "positive") %>% 
-  # rename the generic count var
-  dplyr::rename(`positive tests` = count) %>% 
-  # sort by state
-  dplyr::arrange(desc(state)) %>% 
   # group by state
   dplyr::group_by(state) %>% 
   # create 7 day average
-  dplyr::mutate(`positive tests (7-day-avg)` = zoo::rollmean(`positive tests`, 
-                                                                 k = 7, 
-                                                                 fill = NA)) %>% 
+  dplyr::mutate(pos_test_7da = zoo::rollmean(count, 
+                                             k = 7, 
+                                             fill = NA)) %>% 
   # ungroup
-  dplyr::ungroup() 
+  dplyr::ungroup() %>% 
+  # rename the generic count var
+  dplyr::rename(`positive tests` = count)
 
 
 # TidyPosMapCovus ---------------------------------------------------------
 # tidy positive test metrics
 TidyPosMapCovus <- PosMapCovus %>% 
+  dplyr::select(`positive tests`,
+                `positive tests (7-day-avg)` = pos_test_7da, 
+                dplyr::everything()) %>% 
 # ‹(•_•)› TIDY ––•––•––√\/––√\/––•––•––√\/––√\/––•––•––√\/––√\/  ----
 #  _   _     _
 # | |_(_) __| |_   _
@@ -130,13 +131,12 @@ TidyPosMapCovus <- PosMapCovus %>%
 # | |_| | (_| | |_| |
 #  \__|_|\__,_|\__, |
 #              |___/
-
-  # tidy
+# tidy
   tidyr::pivot_longer(names_to = "roll_avg_key", 
                       values_to = "roll_avg_value", 
                       cols = c(`positive tests`,
                                `positive tests (7-day-avg)`))
-# rename the roll_avg_key 
+# rename the roll_avg_key ----
 TidyPosMapCovus <- TidyPosMapCovus %>% 
   dplyr::rename(`Positive Test Metric` = roll_avg_key,
                 `Positive Test Value` = roll_avg_value)
@@ -160,7 +160,7 @@ NYTCovState <- NYTCovState %>%
 DeathsMapCovus <- MapCovus %>% 
   dplyr::filter(measure == "death") %>% 
   dplyr::rename(`COVID tracking deaths` = count)
-
+TidyCovDeathData <- NYTCovState %>% 
 # ‹(•_•)› JOIN ––•––•––√\/––√\/––•––•––√\/––√\/––•––•––√\/––√\/  ----
 #    _       _
 #   (_) ___ (_)_ __
@@ -168,12 +168,9 @@ DeathsMapCovus <- MapCovus %>%
 #   | | (_) | | | | |
 #  _/ |\___/|_|_| |_|
 # |__/
-
-TidyCovDeathData <- NYTCovState %>% 
   dplyr::inner_join(x = ., 
                     y = DeathsMapCovus, 
                     by = c("date", "fips")) %>% 
-
   # replace missing NAs with 0
   dplyr::mutate(`COVID tracking deaths` = replace_na(`COVID tracking deaths`, 
                                                      replace = 0)) %>% 
@@ -184,13 +181,11 @@ TidyCovDeathData <- NYTCovState %>%
 # | |_| | (_| | |_| |
 #  \__|_|\__,_|\__, |
 #              |___/
-
-  # tidy
     tidyr::pivot_longer(names_to = 'Death Key', 
                         values_to = 'Death Value', 
                       cols = c(`NYT deaths`,
                                `COVID tracking deaths`)) %>% 
-  
+  # reorganize ----
     dplyr::select(date, fips, 
                   dplyr::contains("state"),
                   dplyr::contains("Death"),
@@ -202,7 +197,7 @@ TidyCovDeathData <- NYTCovState %>%
                   month_lbl, 
                   month,
                   floor_month)
-
+# TidyCovCaseData ----
 TidyCovCaseData <- MapCovus %>% 
   dplyr::filter(measure == "positive") %>% 
   # rename the generic count var
@@ -230,15 +225,14 @@ TidyCovCaseData <- MapCovus %>%
 # |  __/>  <| |_) | (_) | |  | |_
 #  \___/_/\_\ .__/ \___/|_|   \__|
 #           |_|
-
 tday <- lubridate::today()
-# create a folder for today's data
-raw_data_path_tday <- paste0("data/raw/", base::noquote(tday), "/")
+# create a folder for processed data
+processed_data_path_tday <- paste0("data/processed/", base::noquote(tday), "/")
 
-# create data path
-fs::dir_create(raw_data_path_tday)
+# create data path ----
+fs::dir_create(processed_data_path_tday)
 # verify
-# fs::dir_tree("data/raw/", recurse = FALSE)
+# fs::dir_tree("data/processed/", recurse = FALSE)
 
 # create a list of raw data files
 covidata_files <- list("Covus" = Covus, 
@@ -250,7 +244,7 @@ covidata_files <- list("Covus" = Covus,
   "TidyCovCaseData" = TidyCovCaseData,
   "TidyPosMapCovus" = TidyPosMapCovus)
 
-# write function for exporting data
+# write function for exporting data ----
 output_csv <- function(data, names){ 
   
     require(fs)
@@ -260,11 +254,11 @@ output_csv <- function(data, names){
     # today
     tday <- lubridate::today()
   
-    # raw data path
-    raw_data_path_tday <- paste0("data/raw/", base::noquote(tday), "/")
+    # processed data path
+    processed_data_path_tday <- paste0("data/processed/", base::noquote(tday), "/")
     
     # export the data, into the raw data folder, with a date stamp
-    readr::write_csv(data, base::paste0(raw_data_path_tday, base::noquote(tday), "-", names, ".csv"))
+    readr::write_csv(data, base::paste0(processed_data_path_tday, base::noquote(tday), "-", names, ".csv"))
     
   }
 

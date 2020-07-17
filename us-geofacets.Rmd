@@ -1,0 +1,446 @@
+---
+title: "Covid - CA flexdashboard (documentation)"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+
+```{r setup, echo=FALSE, cache=FALSE}
+library(flexdashboard)
+library(readr)
+library(leaflet)
+library(DT)
+library(tidyverse)
+library(lubridate)
+library(plotly)
+library(usmap)
+library(spData)
+library(ggmap)
+library(hrbrthemes)
+library(geofacet)
+library(socviz)
+# figs folder
+fs::dir_create("figs/")
+# data folder
+fs::dir_create("data/")
+# docs folder
+fs::dir_create("docs/")
+knitr::opts_chunk$set(
+  echo = TRUE,
+  cache = FALSE,
+  prompt = FALSE,
+  tidy = FALSE,
+  fig.width = 10,
+  fig.height = 8,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE,
+  fig.path = "figs/"
+)
+knitr::opts_knit$set(
+  width = 78
+)
+base::options(
+  tibble.print_max = 25,
+  tibble.width = 78,
+  scipen = 100000000,
+  max.print = 99999
+)
+```
+
+# Packages
+
+```{r packages, include=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+# dashboard
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(janitor)
+
+# theme
+library(ggthemes)
+library(brotools)
+library(hrbrthemes)
+
+# data wrangling
+library(tidyverse)
+library(lubridate)
+library(socviz)
+
+# data visualization
+library(plotly)
+library(gganimate)
+library(gifski)
+library(skimr)
+library(scales)
+# custom skim
+my_skim <- skimr::skim_with(
+  numeric = skimr::sfl(p25 = NULL, p75 = NULL))
+
+# map
+library(rmapshaper)
+library(sugarbag)
+library(geofacet)
+library(covdata)
+```
+
+***
+
+## The `covdata` package 
+
+We'll be using data from the [covdata package](https://kieranhealy.org/blog/archives/2020/04/10/covdata-package/) by [Kieran Healy](https://kieranhealy.org/). The goal with this package is to build an set of graphs that the user can select an input ([`selectInput()`](https://shiny.rstudio.com/reference/shiny/latest/selectInput.html)) from a list of metrics, and see that metric reflected across all 50 states. 
+
+The datasets we'll be using are `covus` and `nytcovstate`. The script below imports and wrangles these data. 
+
+```{r 01.1-import-wrangle-geofacet}
+# fs::dir_ls("code")
+source("code/01.1-import-wrangle-geofacet.R")
+```
+
+
+## The `covus` data 
+
+This is a tidy dataset, with a date for each day, and each metric in the `measure` variable.  
+
+```{r Covus}
+Covus %>% dplyr::glimpse()
+```
+
+A cleaner version of the `measure` variable is stored in the `measure_label` variable.
+
+```{r Covus-measure_label}
+rmarkdown::paged_table(
+dplyr::distinct(Covus, measure_label))
+```
+
+```{r Covus-measure}
+rmarkdown::paged_table(
+dplyr::distinct(Covus, measure))
+```
+
+Now we add the necessary date variables grouped by `state`, remove the regions not included in the `geofacet`, and put these in a dataset called `MapCovus`.
+
+```{r MapCovus}
+rmarkdown::paged_table(
+MapCovus %>% head())
+```
+
+```{r PosMapCovus}
+rmarkdown::paged_table(
+PosMapCovus %>% head())
+```
+
+
+```{r TidyPosMapCovus}
+rmarkdown::paged_table(
+TidyPosMapCovus %>% head())
+```
+
+## The `nytcovstate` data
+
+```{r NYTCovState}
+rmarkdown::paged_table(
+NYTCovState %>% head())
+```
+
+## The `TidyCovDeathData` data
+
+```{r TidyCovDeathData}
+rmarkdown::paged_table(
+TidyCovDeathData %>% head())
+```
+
+# Geofacets 
+
+We've covered how to create the [`geofacet` graphs](https://hafen.github.io/geofacet/) in [this storybench post](https://www.storybench.org/how-to-calculate-a-rolling-average-in-r/). 
+
+We will start by building a map with the `positive` tests in it (see the output below). 
+
+```{r california-new-cases-COVID-TRACKING-PROJECT}
+PosMapCovus %>% 
+  dplyr::filter(state == "CA") %>% 
+    ggplot2::ggplot(aes(x = days_elapsed, 
+                        y = `positive tests`)) +
+    geom_col(alpha = 1/10) + 
+    ggplot2::labs(title = "California's new COVID cases", 
+                  subtitle = paste0("Total COVID-19 positive tests between ",
+                               min(PosMapCovus$date), 
+                               " and ",
+                               max(PosMapCovus$date)),
+                  y = "Positive Tests", 
+                  x = "Days") + 
+  hrbrthemes::theme_ipsum_rc()
+```
+
+Test California with columns and lines.
+
+```{r TidyPosMapCA}
+# get California data
+TidyPosMapCA <- TidyPosMapCovus %>% dplyr::filter(state == "CA")
+# plot columns
+ca_pos_col_plot <- PosMapCovus %>% 
+  dplyr::filter(state == "CA") %>% 
+    ggplot2::ggplot(aes(x = days_elapsed, 
+                        y = `positive tests`,
+                        group = date)) +
+    geom_col(alpha = 1/10, linetype = 0, fill = "grey50") 
+
+ca_pos_col_plot + 
+  # add the lines 
+    ggplot2::geom_line(data = TidyPosMapCA, 
+                       mapping = aes(x = days_elapsed, 
+                                     y = `Positive Test Value`, 
+                                     group = `Positive Test Metric`,
+                                     color = `Positive Test Metric`), 
+                       show.legend = TRUE) +
+    ggplot2::labs(title = "California's new COVID cases", 
+                  subtitle = paste0("Total COVID-19 positive tests between ",
+                               min(PosMapCovus$date), 
+                               " and ",
+                               max(PosMapCovus$date)),
+                  y = "Positive Tests", 
+                  x = "Days") + 
+  hrbrthemes::theme_ipsum_rc()
+```
+
+### Positive Tests
+
+Extend this to `geofacet` and remove the columns. Also adjust the scales. 
+
+```{r geofacet-pos, fig.width=16, fig.height=10}
+geofacet_pos <- PosMapCovus %>% 
+    # adjust for scales on y axis
+    dplyr::mutate(`positive tests` = `positive tests`/1000) %>% 
+    # plot this with new adjusted positive tests
+    ggplot2::ggplot(aes(x = days_elapsed, 
+                        y = `positive tests`,
+                        group = date)) +
+  
+    geom_col(alpha = 2/10, 
+             linetype = 0) + 
+  
+    ggplot2::geom_line(data = TidyPosMapCovus, 
+                       
+    mapping = aes(x = days_elapsed, 
+                  y = `Positive Test Value`/1000,
+                  group = `Positive Test Metric`,
+                  color = `Positive Test Metric`), 
+                    show.legend = TRUE) +
+      
+    geofacet::facet_geo( ~ state, 
+                         
+                       grid = "us_state_grid2",
+                       
+                       scales = "free_y")  +
+  
+    ggplot2::labs(title = "US positive COVID tests (7-day rolling average)", 
+                  
+                  subtitle = paste0("Between ", 
+                                    min(PosMapCovus$date), 
+                                    " and ", 
+                                    max(PosMapCovus$date)),
+                  
+                  caption = "SOURCE: https://covidtracking.com/",
+                  
+                  y = "New Positive Tests",
+                  x = "Days Elapsed") + 
+  
+    scale_y_continuous(label = scales::unit_format(unit = "K")) +
+  
+    # ggplot2::theme_bw() +
+  
+    ggthemes::theme_tufte(base_size = 10, base_family = "Ubuntu") +
+  
+    ggplot2::theme(axis.text.x = element_text(angle = 315),
+                 legend.position = "top") 
+
+  
+
+geofacet_pos
+
+ggsave(plot = geofacet_pos, 
+       filename = "figs/geofacet_pos.png", 
+       device = "png", 
+       dpi = "retina",
+       width = 16, 
+       height = 10, 
+       units = "in", 
+       limitsize = FALSE)
+```
+
+### US Cases 
+
+Compare the `NYT` and `COVID-tracking project` datasets (positive tests vs. NYT cases). 
+
+```{r TidyCovCaseData, fig.width=16, fig.height=10}
+geofacet_cases <- TidyCovCaseData %>% 
+        # adjust for y scale formatting (`K`)
+        dplyr::mutate(`Cases Value` = `Cases Value`/1000) %>% 
+        
+        ggplot2::ggplot(aes(x = days_elapsed, 
+                            
+                           y = `Cases Value`, 
+                  
+                           group = `Cases Key`,
+                  
+                           color = `Cases Key`)) +
+  
+    ggplot2::geom_line(show.legend = TRUE) +
+          
+    geofacet::facet_geo( ~ state, 
+                       grid = "us_state_grid2",
+                       scales = "free_y")  +
+  
+    ggplot2::labs(title = "US COVID Cases", 
+                  
+                  subtitle = paste0("Between ", 
+                                    min(TidyCovCaseData$date), 
+                                    " and ", 
+                                    max(TidyCovCaseData$date)),
+                  
+caption = "https://covidtracking.com | https://github.com/nytimes/covid-19-data",
+
+                  y = "New Cases",
+                  x = "Days Elapsed") + 
+          
+    ggplot2::scale_y_continuous(label = scales::unit_format(unit = "K")) +
+  
+    ggthemes::theme_tufte(base_size = 10, base_family = "Ubuntu") +
+  
+    ggplot2::theme(axis.text.x = element_text(angle = 315),
+                 legend.position = "top") 
+  
+
+
+geofacet_cases
+
+ggsave(plot = geofacet_cases, 
+       filename = "figs/geofacet_cases.png", 
+       device = "png", 
+       dpi = "retina",
+       width = 16, 
+       height = 10, 
+       units = "in", 
+       limitsize = FALSE)
+```
+
+### US Deaths 
+
+NYT vs. COVID tracking project deaths.
+
+```{r geofacet_deaths, fig.width=16, fig.height=10}
+geofacet_deaths <- TidyCovDeathData %>%
+        # adjust for y scale formatting (`K`)
+        dplyr::mutate(`Death Value` = `Death Value`/1000) %>% 
+  
+        ggplot2::ggplot(aes(x = days_elapsed, 
+                          
+                           y = `Death Value`, 
+                          
+                           group = `Death Key`,
+                          
+                           color = `Death Key`)) +
+  
+        ggplot2::geom_line(show.legend = TRUE) +
+  
+        geofacet::facet_geo( ~ state, 
+                             
+                             grid = "us_state_grid2", 
+                             scales = "free_y")  +
+  
+ggplot2::labs(title = "US COVID deaths", 
+              
+              subtitle = paste0("Between ", 
+                                
+                                min(DeathsMapCovus$date), 
+                                " and ", 
+                                max(DeathsMapCovus$date)),
+              
+caption = "https://covidtracking.com | https://github.com/nytimes/covid-19-data",
+              y = "New Positive Tests",
+              x = "Days Elapsed") + 
+  
+       ggplot2::scale_y_continuous(label = scales::unit_format(unit = "K")) +
+      
+       ggthemes::theme_tufte(base_size = 10, base_family = "Ubuntu") +
+      
+       ggplot2::theme(axis.text.x = element_text(angle = 315),
+                     legend.position = "top") 
+  
+ 
+geofacet_deaths
+
+ggsave(plot = geofacet_deaths, 
+       filename = "figs/geofacet_deaths.png", 
+       device = "png", 
+       dpi = "retina",
+       width = 16, 
+       height = 10, 
+       units = "in", 
+       limitsize = FALSE)
+```
+
+
+```{r}
+# This example modifies code from Hadley Wickham (https://gist.github.com/hadley/233134)
+# It also uses data from Nathan Yau's flowingdata site (http://flowingdata.com/)
+unemp <- read.csv("http://datasets.flowingdata.com/unemployment09.csv")
+names(unemp) <- c("id", "state_fips", "county_fips", "name", "year", 
+                  "?", "?", "?", "rate")
+unemp$county <- tolower(gsub(" County, [A-Z]{2}", "", unemp$name))
+unemp$state <- gsub("^.*([A-Z]{2}).*$", "\\1", unemp$name)
+county_df <- map_data("county")
+names(county_df) <- c("long", "lat", "group", "order", "state_name", "county")
+county_df$state <- state.abb[match(county_df$state_name, tolower(state.name))]
+county_df$state_name <- NULL
+state_df <- map_data("state")
+choropleth <- merge(county_df, unemp, by = c("state", "county"))
+# sort by order
+choropleth <- choropleth[order(choropleth$order), ]
+# calculate rate_d
+choropleth$rate_d <- cut(choropleth$rate, breaks = c(seq(0, 10, by = 2), 35))
+# provide a custom tooltip to plotly with the county name and actual rate
+choropleth$text <- with(choropleth, paste0("County: ", name, "Rate: ", rate))
+choropleth <- choropleth %>% dplyr::select(long, lat, group, rate_d, text)
+# this map takes in two datasets, choropleth and state_df
+str(choropleth)
+str(state_df)
+```
+
+
+```{r}
+p <- choropleth %>% ggplot(aes(x = long, 
+                               y = lat, 
+                               group = group)) +
+  geom_polygon(aes(fill = rate_d, 
+                   text = text), 
+                colour = alpha("white", 1/2), 
+                              size = 0.2) + 
+  geom_polygon(data = state_df, 
+               colour = "white", 
+               fill = NA) +
+  scale_fill_brewer(palette = "PuRd") + 
+  theme_void()
+# just show the text aesthetic in the tooltip
+ggplotly(p, tooltip = "text")
+```
+
+
+```{r}
+density <- state.x77[, "Population"] / state.x77[, "Area"]
+
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  lakecolor = toRGB('white')
+)
+
+plot_geo() %>%
+  add_trace(
+    z = ~density, text = state.name, span = I(0),
+    locations = state.abb, locationmode = 'USA-states'
+  ) %>%
+  layout(geo = g)
+```

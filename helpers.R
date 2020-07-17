@@ -212,6 +212,7 @@ USTSDataAll <- ConfirmedUS %>%
 SumUSDataMap <- USTSDataAll %>% 
   dplyr::group_by(state, date) %>% 
   dplyr::summarize(
+    new_case_sum = sum(`New Case`),
     confirmed_sum = sum(confirmed),
     deaths_sum = sum(deaths)) %>% 
    dplyr::filter(date == max(date))
@@ -227,22 +228,26 @@ SumUSDataMap <- SumUSDataMap %>%
                               "Virgin Islands"))
 
 
-# confirmed_us ------------------------------------------------------------
-# create named vector for confirmed 
+# create named vector for confirmed ----
 confirmed_us <- SumUSDataMap %>% 
   select(state, confirmed_sum) %>% 
   tibble::deframe()
 # class(confirmed_us)
 # length(confirmed_us)
-# create named vector for deaths 
-
-# deaths_us ---------------------------------------------------------------
-
+# create named vector for deaths ----
 deaths_us <- SumUSDataMap %>% 
   select(state, deaths_sum) %>% 
   tibble::deframe()
 # class(deaths_us)
 # length(deaths_us)
+
+# create named vector for new cases ----
+new_case_us <- SumUSDataMap %>% 
+  select(state, new_case_sum) %>% 
+  tibble::deframe()
+# class(new_case_sum)
+# length(new_case_sum)
+
 state.name <- state.name
 state.abb <- state.abb
 
