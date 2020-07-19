@@ -457,13 +457,13 @@ valueBox(prettyNum(SumUSRecentCountry$new_case_sum, big.mark = ","), color = "#E
 ### `r paste0("US recovered cases as of ", SumUSRecentCountry$date_max)` 
 
 ```{r SumUSRecentCountry-recovered_sum}
-valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "#EEE9E9")
+valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "#00FF7F")
 ```
 
 ### `r paste0("US deaths as of ", SumUSRecentCountry$date_max)` 
 
 ```{r deaths_sum}
-valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "#00FF7F")
+valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "#EEE9E9")
 ```
 
 ### `r paste0("Days since first confirmed case on ", us_first_case_day)` 
@@ -594,13 +594,13 @@ valueBox(prettyNum(SumUSRecentCountry$new_case_sum, big.mark = ","), color = "#E
 ### `r paste0("US recovered cases as of ", SumUSRecentCountry$date_max)` 
 
 ```{r 02-SumUSRecentCountry-recovered_sum}
-valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "#EEE9E9")
+valueBox(prettyNum(SumUSRecentCountry$recovered_sum, big.mark = ","), color = "#00FF7F")
 ```
 
 ### `r paste0("US deaths as of ", SumUSRecentCountry$date_max)` 
 
 ```{r 02-deaths_sum}
-valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "#00FF7F")
+valueBox(prettyNum(SumUSRecentCountry$deaths_sum, big.mark = ","), color = "#EEE9E9")
 ```
 
 
