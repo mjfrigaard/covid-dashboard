@@ -96,7 +96,31 @@ library(sugarbag)
 - [x] Fix `geofacet` units on `y` axes (non-scientific notation)   
 - [x] add `bbplot` theme for animated graphs
 
-# Changes coming 
+# To-Do/Changes coming 
+
+- [ ] investigate git warning for large file storage: 
+
+```{bash}
+# remote: warning: GH001: Large files detected. You may want to try Git Large File
+#         Storage - https://git-lfs.github.com.
+# remote: warning: See http://git.io/iEPt8g for more information.
+# remote: warning: File data/processed/2020-07-19/2020-07-19-USTSDataAll.csv is 
+#                  52.00 MB; this is larger than GitHub's recommended maximum file
+#                  size of 50.00 MB
+# To https://github.com/mjfrigaard/covid-dashboard.git
+#   2973303..a2486af  master -> master
+```
+
+ + Already installed [Git Large File Storage (LFS)](https://git-lfs.github.com/) using, 
+ 
+    ```bash
+    brew install git-lfs
+    # Update global git config
+    git lfs install
+    # Update system git config
+    sudo -i
+    git lfs install --system
+    ```
 
 - [ ] Add county maps  
 - [ ] Include Rt for each county
